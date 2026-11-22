@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>テーブルレイアウト ジェネレーター</title>
+<style>
+:root{
+  --bg:#f5f4f0;--surface:#ffffff;--ink:#2a2622;--sub:#7a7268;--line:#dcd7ce;
+  --accent:#b4532a;--accent-ink:#ffffff;--code-bg:#2a2622;--code-ink:#f1e9dc;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1b1815;--surface:#26221e;--ink:#efe8dd;--sub:#a99f90;--line:#3d3730;
+    --accent:#e08a5f;--accent-ink:#2a1306;--code-bg:#120f0d;--code-ink:#f1e9dc;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1b1815;--surface:#26221e;--ink:#efe8dd;--sub:#a99f90;--line:#3d3730;
+  --accent:#e08a5f;--accent-ink:#2a1306;--code-bg:#120f0d;--code-ink:#f1e9dc;
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Yu Gothic",system-ui,sans-serif;line-height:1.6}
+.wrap{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:1.25rem;margin:8px 0 14px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+.stage{background:#fff;color:#222;border:1px dashed var(--accent);border-radius:12px;padding:10px;margin-bottom:14px;overflow-x:auto}
+.stage [contenteditable]:focus{outline:2px solid #b4532a;outline-offset:-2px}
+.ctrl{margin-bottom:14px}
+.ctrl:last-child{margin-bottom:0}
+.ctrl>label,.lab{display:block;font-size:.85rem;font-weight:700;margin-bottom:6px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{flex:1 1 auto;min-height:40px;padding:6px 10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;font:inherit;font-size:.85rem;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:480px){.two{grid-template-columns:1fr}}
+input[type=range]{flex:1;min-width:120px;accent-color:var(--accent)}
+input[type=color]{width:48px;height:40px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:2px}
+.val{min-width:3.2em;text-align:right;font-variant-numeric:tabular-nums;font-size:.9rem}
+.stepper{display:flex;gap:8px;align-items:center}
+.stepper button{width:44px;height:44px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:1.2rem;cursor:pointer}
+.stepper span{min-width:2em;text-align:center;font-weight:700}
+.colors{display:flex;gap:14px;flex-wrap:wrap}
+.colors div{display:flex;align-items:center;gap:8px;font-size:.85rem}
+pre{margin:0;background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:14px;overflow:auto;max-height:360px;font-size:.8rem;line-height:1.65;font-family:ui-monospace,Menlo,Consolas,monospace;white-space:pre}
+.copy{display:block;width:100%;margin-top:10px;min-height:52px;border:0;border-radius:10px;background:var(--accent);color:var(--accent-ink);font:inherit;font-size:1.05rem;font-weight:700;cursor:pointer}
+.copy:active{transform:scale(.99)}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.hint{font-size:.8rem;color:var(--sub);margin:6px 0 0}
+.seg button:disabled{opacity:.4;cursor:default}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>テーブルレイアウト ジェネレーター</h1>
+
+  <div class="stage" id="stage"></div>
+  <div class="panel">
+    <div class="seg" id="modeseg"></div>
+    <div class="seg" style="margin-top:8px"><button type="button" id="mergeBtn">セルを結合</button><button type="button" id="splitBtn">結合を解除</button></div>
+    <p class="hint" id="msg">セルを直接タップして文字を編集できます。</p>
+  </div>
+
+  <div class="panel">
+    <div class="two">
+      <div class="ctrl"><label>行数</label><div class="stepper"><button data-s="rows:-1" aria-label="行を減らす">−</button><span id="rows"></span><button data-s="rows:1" aria-label="行を増やす">＋</button></div></div>
+      <div class="ctrl"><label>列数</label><div class="stepper"><button data-s="cols:-1" aria-label="列を減らす">−</button><span id="cols"></span><button data-s="cols:1" aria-label="列を増やす">＋</button></div></div>
+    </div>
+    <div class="ctrl"><label>見出し・しま模様</label><div class="seg" id="toggles"></div></div>
+    <div class="ctrl"><label>text-align（文字の位置）</label><div class="seg" data-prop="align"></div></div>
+    <div class="ctrl"><label>width（表の幅）</label><div class="seg" data-prop="width"></div></div>
+    <div class="ctrl"><label>table-layout</label><div class="seg" data-prop="layout"></div></div>
+    <div class="ctrl"><label>罫線の太さ</label><div class="row"><input type="range" id="bw" min="0" max="4" value="1"><span class="val" id="bwv"></span></div></div>
+    <div class="ctrl"><label>セルの余白（padding）</label><div class="row"><input type="range" id="pad" min="0" max="24" value="8"><span class="val" id="padv"></span></div></div>
+    <div class="ctrl"><label>色</label><div class="colors">
+      <div><input type="color" id="cBorder"> 罫線</div>
+      <div><input type="color" id="cHead"> 見出し</div>
+      <div><input type="color" id="cStripe"> しま</div>
+    </div></div>
+  </div>
+
+  <div class="panel">
+    <div class="ctrl"><label>出力形式</label><div class="seg" data-prop="mode"></div>
+      <p class="hint" id="modehint"></p></div>
+    <pre id="code"></pre>
+    <button class="copy" id="copy">HTMLをコピー</button>
+  </div>
+</div>
+
+<script>
+var S={rows:4,cols:3,hRow:true,hCol:false,stripe:true,align:"left",width:"100%",layout:"auto",bw:1,pad:8,
+  cBorder:"#cccccc",cHead:"#f0ece4",cStripe:"#f8f6f1",mode:"CSS分離"};
+var data=[],merges=[],emode="edit",sel=null,anchor=null,ranged=false;
+var opts={align:["left","center","right"],width:["100%","auto","600px"],layout:["auto","fixed"],mode:["CSS分離","インライン","RMS SP用","RMS PC用"]};
+var $=function(id){return document.getElementById(id)};
+
+function cell(r,c){
+  if(!data[r])data[r]=[];
+  if(data[r][c]==null)data[r][c]=(S.hRow&&r===0)?"見出し"+(c+1):"データ";
+  return data[r][c];
+}
+function esc(t){return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+
+function baseCell(){return "border:"+S.bw+"px solid "+S.cBorder+";padding:"+S.pad+"px;text-align:"+S.align+";"}
+function tblStyle(){return "border-collapse:collapse;width:"+S.width+";table-layout:"+S.layout+";"}
+
+// inline HTML (used for preview and inline output)
+function mergeAt(r,c){for(var i=0;i<merges.length;i++){var m=merges[i];if(r>=m.r&&r<m.r+m.rs&&c>=m.c&&c<m.c+m.cs)return m}return null}
+function inSel(r,c){return sel&&r>=sel.r1&&r<=sel.r2&&c>=sel.c1&&c<=sel.c2}
+function cellOpen(tag,r,c,pv,style){
+  var m=mergeAt(r,c);if(m&&(m.r!==r||m.c!==c))return null;
+  var a="";if(m){if(m.cs>1)a+=' colspan="'+m.cs+'"';if(m.rs>1)a+=' rowspan="'+m.rs+'"'}
+  if(pv){a+=' data-r="'+r+'" data-c="'+c+'"';
+    if(emode==="edit")a+=' contenteditable="true"';
+    else{style+="cursor:pointer;-webkit-user-select:none;user-select:none;";if(inSel(r,c))style+="box-shadow:inset 0 0 0 3px #b4532a;background-image:linear-gradient(rgba(180,83,42,.28),rgba(180,83,42,.28));"}}
+  return "<"+tag+a+' style="'+style+'">';
+}
+function gen(editable){
+  var h='<table style="'+tblStyle()+'">\n';
+  var bodyStart=S.hRow?1:0;
+  if(S.hRow){
+    h+="  <thead>\n    <tr>\n";
+    for(var c=0;c<S.cols;c++){
+      var o=cellOpen("th",0,c,editable,baseCell()+"background:"+S.cHead+";font-weight:bold;");if(o)h+="      "+o+esc(cell(0,c))+"</th>\n";
+    }
+    h+="    </tr>\n  </thead>\n";
+  }
+  h+="  <tbody>\n";
+  for(var r=bodyStart;r<S.rows;r++){
+    h+="    <tr>\n";
+    for(var c2=0;c2<S.cols;c2++){
+      var isH=S.hCol&&c2===0;
+      var bg=isH?S.cHead:((S.stripe&&(r-bodyStart)%2===1)?S.cStripe:"");
+      var st=baseCell()+(bg?"background:"+bg+";":"")+(isH?"font-weight:bold;":"");
+      var tag=isH?"th":"td";
+      var o=cellOpen(tag,r,c2,editable,st);if(o)h+="      "+o+esc(cell(r,c2))+"</"+tag+">\n";
+    }
+    h+="    </tr>\n";
+  }
+  return h+"  </tbody>\n</table>";
+}
+
+function isRms(){return S.mode.indexOf("RMS")===0}
+function escB(t){return esc(t).replace(/\r?\n/g,"<br>")}
+function rmsW(sp){var w=S.width;if(w==="auto")return"";if(w==="100%"||sp)return' width="100%"';return' width="'+parseInt(w,10)+'"'}
+function rmsCell(tag,r,c,pv,bg){
+  var m=mergeAt(r,c);if(m&&(m.r!==r||m.c!==c))return null;
+  var a="";if(m){if(m.cs>1)a+=' colspan="'+m.cs+'"';if(m.rs>1)a+=' rowspan="'+m.rs+'"'}
+  a+=' bgcolor="'+bg+'" align="'+S.align+'"';
+  if(pv){a+=' data-r="'+r+'" data-c="'+c+'"';
+    if(emode==="edit")a+=' contenteditable="true"';
+    else{var st="cursor:pointer;-webkit-user-select:none;user-select:none;";if(inSel(r,c))st+="box-shadow:inset 0 0 0 3px #b4532a;background-image:linear-gradient(rgba(180,83,42,.28),rgba(180,83,42,.28));";a+=' style="'+st+'"'}}
+  return "<"+tag+a+">";
+}
+function genRms(pv){
+  var sp=S.mode==="RMS SP用",bs=S.hRow?1:0;
+  var h="<table"+rmsW(sp)+' border="0" cellspacing="'+S.bw+'" cellpadding="'+S.pad+'"'+(S.bw>0?' bgcolor="'+S.cBorder+'"':"")+">\n";
+  for(var r=0;r<S.rows;r++){
+    h+="  <tr>\n";
+    for(var c=0;c<S.cols;c++){
+      var head=r<bs||(S.hCol&&c===0),tag=head?"th":"td";
+      var bg=head?S.cHead:((S.stripe&&(r-bs)%2===1)?S.cStripe:"#ffffff");
+      var o=rmsCell(tag,r,c,pv,bg);if(o)h+="    "+o+escB(cell(r,c))+"</"+tag+">\n";
+    }
+    h+="  </tr>\n";
+  }
+  return h+"</table>";
+}
+function genCss(){
+  var bs=S.bw+"px solid "+S.cBorder;
+  var css="<style>\n.tbl {\n  border-collapse: collapse;\n  width: "+S.width+";\n  table-layout: "+S.layout+";\n}\n"+
+   ".tbl th, .tbl td {\n  border: "+bs+";\n  padding: "+S.pad+"px;\n  text-align: "+S.align+";\n}\n"+
+   ".tbl th {\n  background: "+S.cHead+";\n  font-weight: bold;\n}\n";
+  if(S.stripe)css+=".tbl tbody tr:nth-child(even) td {\n  background: "+S.cStripe+";\n}\n";
+  css+="</style>\n";
+  var h='<table class="tbl">\n',bs0=S.hRow?1:0;
+  if(S.hRow){h+="  <thead>\n    <tr>\n";for(var c=0;c<S.cols;c++){var o=cellOpen("th",0,c,false,"");if(o)h+="      "+o.replace(' style=""',"")+esc(cell(0,c))+"</th>\n"}h+="    </tr>\n  </thead>\n"}
+  h+="  <tbody>\n";
+  for(var r=bs0;r<S.rows;r++){
+    h+="    <tr>\n";
+    for(var c2=0;c2<S.cols;c2++){var t=(S.hCol&&c2===0)?"th":"td";var o=cellOpen(t,r,c2,false,"");if(o)h+="      "+o.replace(' style=""',"")+esc(cell(r,c2))+"</"+t+">\n"}
+    h+="    </tr>\n";
+  }
+  return css+h+"  </tbody>\n</table>";
+}
+
+function updateCode(){$("code").textContent=isRms()?genRms(false):(S.mode==="インライン"?gen(false):genCss())}
+
+function buildSeg(el,list,get,set){
+  el.innerHTML="";
+  list.forEach(function(v){
+    var b=document.createElement("button");b.type="button";b.textContent=v;
+    b.setAttribute("aria-pressed",String(get()===v));
+    b.onclick=function(){set(v);render()};el.appendChild(b);
+  });
+}
+
+function render(){
+  $("rows").textContent=S.rows;$("cols").textContent=S.cols;
+  $("bwv").textContent=S.bw+"px";$("padv").textContent=S.pad+"px";
+  document.querySelectorAll("[data-prop]").forEach(function(el){
+    var p=el.getAttribute("data-prop");
+    buildSeg(el,opts[p],function(){return S[p]},function(v){S[p]=v});
+  });
+  var t=$("toggles");t.innerHTML="";
+  [["hRow","見出し行"],["hCol","見出し列"],["stripe","しま模様"]].forEach(function(x){
+    var b=document.createElement("button");b.type="button";b.textContent=x[1];
+    b.setAttribute("aria-pressed",String(S[x[0]]));
+    b.onclick=function(){
+      S[x[0]]=!S[x[0]];
+      if(x[0]==="hRow"){data=[];merges=[];sel=null;anchor=null;ranged=false}
+      render();
+    };t.appendChild(b);
+  });
+  buildSeg($("modeseg"),["文字を編集","セルを選択"],function(){return emode==="edit"?"文字を編集":"セルを選択"},function(v){
+    emode=v==="文字を編集"?"edit":"select";sel=null;anchor=null;ranged=false;
+    $("msg").textContent=emode==="edit"?"セルを直接タップして文字を編集できます。":"1つ目のセルをタップ、続けて2つ目のセルをタップすると範囲を選べます。";
+  });
+  $("mergeBtn").disabled=!canMerge();$("splitBtn").disabled=!canSplit();
+  var hints={"CSS分離":"<style>とclassを使う通常のHTMLです。RMSでは使えません。","インライン":"styleを各タグに書く形式です。RMSのSPでは使えません。","RMS SP用":"使うタグはtable・tr・th・tdのみ、styleなし。固定px幅は使えないため100%になります。罫線の色は表のbgcolorとcellspacingで表し、セルの背景は白(#ffffff)が前提です。table-layoutは出力されません。","RMS PC用":"使うタグはtable・tr・th・tdのみ、styleなし。width・border・cellspacing・cellpadding・bgcolor・alignで出力します。罫線の色は表のbgcolorとcellspacingで表し、セルの背景は白(#ffffff)が前提です。table-layoutは出力されません。"};
+  $("modehint").textContent=hints[S.mode]+(isRms()&&merges.length?" ※結合セル（colspan/rowspan）はRMSで使えるか未確認です。実際に貼って確認してください。":"");
+  $("stage").innerHTML=isRms()?genRms(true):gen(true);
+  updateCode();
+}
+
+document.querySelectorAll("[data-s]").forEach(function(b){
+  b.onclick=function(){
+    var p=b.getAttribute("data-s").split(":"),k=p[0],d=+p[1];
+    var max=k==="rows"?20:8,min=1;
+    S[k]=Math.min(max,Math.max(min,S[k]+d));prune();render();
+  };
+});
+$("bw").oninput=function(e){S.bw=+e.target.value;render()};
+$("pad").oninput=function(e){S.pad=+e.target.value;render()};
+["cBorder","cHead","cStripe"].forEach(function(k){
+  $(k).value=S[k];
+  $(k).oninput=function(e){S[k]=e.target.value;render()};
+});
+$("stage").addEventListener("input",function(e){
+  var el=e.target;if(!el.hasAttribute||!el.hasAttribute("data-r"))return;
+  data[+el.getAttribute("data-r")][+el.getAttribute("data-c")]=el.innerText;
+  updateCode();
+});
+function ext(r,c){var m=mergeAt(r,c);return m?{r1:m.r,c1:m.c,r2:m.r+m.rs-1,c2:m.c+m.cs-1}:{r1:r,c1:c,r2:r,c2:c}}
+function hits(m,q){return m.r<=q.r2&&m.r+m.rs-1>=q.r1&&m.c<=q.c2&&m.c+m.cs-1>=q.c1}
+function expand(q){var ch=true;while(ch){ch=false;merges.forEach(function(m){if(hits(m,q)){var n={r1:Math.min(q.r1,m.r),c1:Math.min(q.c1,m.c),r2:Math.max(q.r2,m.r+m.rs-1),c2:Math.max(q.c2,m.c+m.cs-1)};if(n.r1!==q.r1||n.c1!==q.c1||n.r2!==q.r2||n.c2!==q.c2){q=n;ch=true}}})}return q}
+function canMerge(){if(!sel)return false;if(sel.r1===sel.r2&&sel.c1===sel.c2)return false;return !merges.some(function(m){return m.r===sel.r1&&m.c===sel.c1&&m.r+m.rs-1===sel.r2&&m.c+m.cs-1===sel.c2})}
+function canSplit(){return !!sel&&merges.some(function(m){return hits(m,sel)})}
+function prune(){merges=merges.filter(function(m){return m.r+m.rs<=S.rows&&m.c+m.cs<=S.cols});sel=null;anchor=null;ranged=false}
+$("stage").addEventListener("click",function(e){
+  if(emode!=="select")return;
+  var el=e.target.closest("[data-r]");if(!el)return;
+  var r=+el.getAttribute("data-r"),c=+el.getAttribute("data-c"),t=ext(r,c);
+  $("msg").textContent="";
+  if(!anchor||ranged){anchor={r:r,c:c};sel=t;ranged=false}
+  else if(anchor.r===r&&anchor.c===c){anchor=null;sel=null}
+  else{var a=ext(anchor.r,anchor.c);sel=expand({r1:Math.min(a.r1,t.r1),c1:Math.min(a.c1,t.c1),r2:Math.max(a.r2,t.r2),c2:Math.max(a.c2,t.c2)});ranged=true}
+  render();
+});
+$("mergeBtn").onclick=function(){
+  if(!canMerge())return;
+  if(S.hRow&&sel.r1===0&&sel.r2>0){$("msg").textContent="見出し行と本文行はまたいで結合できません。";return}
+  merges=merges.filter(function(m){return !hits(m,sel)});
+  merges.push({r:sel.r1,c:sel.c1,rs:sel.r2-sel.r1+1,cs:sel.c2-sel.c1+1});
+  anchor={r:sel.r1,c:sel.c1};sel=ext(sel.r1,sel.c1);ranged=false;
+  $("msg").textContent="結合しました。";render();
+};
+$("splitBtn").onclick=function(){
+  if(!canSplit())return;
+  merges=merges.filter(function(m){return !hits(m,sel)});
+  anchor=null;sel=null;ranged=false;$("msg").textContent="結合を解除しました。";render();
+};
+$("copy").onclick=function(){
+  var btn=this,text=$("code").textContent;
+  function done(){btn.textContent="コピーしました";setTimeout(function(){btn.textContent="HTMLをコピー"},1600)}
+  function fb(){
+    var ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";
+    document.body.appendChild(ta);ta.select();
+    try{document.execCommand("copy");done()}catch(e){btn.textContent="コピーできませんでした"}
+    document.body.removeChild(ta);
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,fb)}else{fb()}
+};
+render();
+</script>
+</body>
+</html>
